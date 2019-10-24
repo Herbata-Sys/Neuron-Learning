@@ -1,0 +1,309 @@
+<html>
+  <head>
+    <title>Uczenie jednego neuronu</title>
+    <script src="js/plotly-latest.min.js"></script>
+  </head>
+  <style>
+  *{
+    box-sizing: border-box;
+	font-family: Tahoma, Geneva, sans-serif;
+  }
+
+  input[type="text"]{
+    width: 30px;
+    text-align: center;
+  }
+
+  input{
+    font-size: 18px;
+  }
+
+  span{
+    padding: 0 5px;
+    font-size: 18px;
+  }
+
+  table{
+    border: 1px solid rgb(184, 184, 184);
+    border-collapse: collapse;
+  }
+
+  table td, table th{
+    padding: 5px;
+    text-align: center;
+  }
+
+  table tr:nth-child(odd){
+    background: #eff1ff;
+  }
+
+  table tr:nth-child(1){
+    background: black;
+    color: white;
+  }
+
+  .table1, .table2{
+    display: inline-block;
+  }
+
+  .container{
+    display: flex;
+  }
+
+  .left{
+    width: 360px;
+    padding: 20px;
+    text-align: center;
+  }
+
+  .right{
+    overflow: hidden;
+    width: calc(100% - 360px);
+  }
+
+  #plot, #error-plot{
+    max-width: 100%;
+  }
+  </style>
+
+  <body>
+    <div class="container">
+      <div class="left">
+        <div>
+          <span title="Współczynnik uczenia">η: <input type="text" class="eta"></span>
+          <span title="Waga wejścia 0">w<sub>0</sub>: <input type="text" class="w0"></span>
+          <span title="Waga wejścia 1">w<sub>1</sub>: <input type="text" class="w1"></span>
+          <span title="Waga wejścia 2">w<sub>2</sub>: <input type="text" class="w2"></span><br><br>
+          <span title="Liczba epok">Liczba epok <input type="text" class="count"></span><br><br>
+          <input type="button" value="Wylicz" class="start">
+        </div><br>
+        <hr>
+
+        <h3>Epoki:</h3>
+        <div class="table1"></div>
+        <h3>Ciąg uczący:</h3>
+        <div class="table2"></div>
+      </div>
+      <div class="right">
+        <div id="plot"></div>
+
+        <div id="error-plot"></div>
+      </div>
+    </div>
+    </body>
+  </body>
+</html>
+
+<script>
+let w = [0, 1, 2] //wagi
+let cu = [ //ciag uczacy
+  {
+    in: [1, 1, 1],
+    out: 1
+  },
+  {
+    in: [1, 1, -1],
+    out: 1
+  },
+  {
+    in: [1, -1, -1],
+    out: -1
+  },
+  {
+    in: [1, -1, 1],
+    out: -1
+  },
+]
+let eta = 0.1 //wspolczynnik uczenia
+let fx = 1 //pochodna funkcji aktywacji
+let delta = 0
+let data = []
+let generations = []
+
+function calcY(w, cu) {
+  let y = []
+  cu.forEach((elementU, index) => {
+    let sum = 0
+    elementU.in.forEach((elementInput, index) => {
+      sum += elementInput * w[index]
+    })
+    y[index] = sum
+  })
+
+  return y
+}
+
+function calcDelta(w, cu) {
+  let y = calcY(w, cu)
+  let delts = []
+  cu.forEach((elementU, index) => {
+    delts.push(elementU.out - y[index])
+  })
+  return delts
+}
+
+function calcWeight(eta, fx, cu, w) {
+  let delts = calcDelta(w, cu)
+  let weights = []
+  cu.forEach((elementU, index) => {
+    weights[index] = []
+    elementU.in.forEach(elementInput => {
+      const wx = eta * fx * elementInput * delts[index]
+      weights[index].push(wx)
+    })
+  })
+
+  w.forEach((elementW, index) => {
+    let sum = 0
+    weights.forEach(weight => {
+      sum += weight[index]
+    })
+    w[index] += sum
+  })
+}
+
+function calcError(w, cu) {
+  let error = 0
+  let delts = calcDelta(w, cu)
+  delts.forEach(delta => {
+    error += delta*delta
+  })
+  return Math.sqrt(error / cu.length)
+}
+
+function learn(count) {
+  data = []
+  for(let i=0;i<count;i++) {
+    //console.log(w)
+    generations[i] = {}
+    generations[i].error = calcError(w, cu)
+    generations[i].w0 = w[0]
+    generations[i].w1 = w[1]
+    generations[i].w2 = w[2]
+    calcWeight(eta, fx, cu, w)
+
+    trace = {
+      name: `Epoka ${i+1}`,
+      x: [-10, 10],
+      y: [w[2] == 0 ? (-1*w[0]-w[1]*-10) : (-1*w[0]-w[1]*-10)/w[2], w[2] == 0 ? (-1*w[0]-w[1]*10) : (-1*w[0]-w[1]*10)/w[2]],
+      mode:'lines'
+    }
+    data.push(trace)
+  }
+  plotDraw()
+}
+
+function plotDraw() {
+  Plotly.purge('plot');
+  Plotly.purge('error-plot');
+  points1 = {
+    x: [cu[0].in[1], cu[1].in[1]],
+    y: [cu[0].in[2], cu[1].in[2]],
+    mode: 'markers',
+    opacity: 0.8,
+    marker: {
+      size: 10
+    },
+    text: ['z: 1', 'z: 1'],
+    name: 'Ciąg uczący (z: 1)',
+  }
+  points2 = {
+    x: [cu[2].in[1], cu[3].in[1]],
+    y: [cu[2].in[2], cu[3].in[2]],
+    mode: 'markers',
+    opacity: 0.8,
+    marker: {
+      size: 10
+    },
+    text: ['z: -1', 'z: -1'],
+    name: 'Ciąg uczący (z: -1)',
+  }
+  data.push(points1, points2)
+
+  Plotly.plot('plot', data, { 'hovermode': 'closest', xaxis: { range: [-5, 5] }, yaxis: { range: [-5, 5] }, title: 'Uczenie jednego neuronu <br>(poch. f. aktyw. f\'(x)=1)', font: {size: 18}});
+
+  let errors = [
+    {
+      x: [],
+      y: [],
+      name: 'Wykres błędu',
+    },
+    {
+      x: [],
+      y: [],
+      mode: 'markers',
+      text: [],
+      marker: {
+        size: 10
+      },
+      name: 'Punkty błędu',
+    },
+  ];
+
+  generations.forEach((element, index) => {
+    errors[0].x.push(index+1);
+    errors[0].y.push(element.error);
+
+    errors[1].x.push(index+1);
+    errors[1].y.push(element.error);
+    errors[1].text.push(`Błąd ${index+1}`);
+  });
+  console.log(errors)
+  Plotly.plot('error-plot', errors, { yaxis: { range: [-1, 7], title: {text: 'Błąd',} }, title: 'Wykres błędu', font: { size: 18 }, xaxis: { title: { text: 'Epoka' } } });
+}
+
+function start() {
+  generations = []
+  eta = parseFloat(document.querySelector('.eta').value)
+  count = parseFloat(document.querySelector('.count').value)
+  w[0] = parseFloat(document.querySelector('.w0').value)
+  w[1] = parseFloat(document.querySelector('.w1').value)
+  w[2] = parseFloat(document.querySelector('.w2').value)
+  learn(count)
+  //console.log(generations)
+  createTable()
+}
+
+function init() {
+  document.querySelector('.eta').value = eta
+  document.querySelector('.count').value = 2
+  document.querySelector('.w0').value = w[0]
+  document.querySelector('.w1').value = w[1]
+  document.querySelector('.w2').value = w[2]
+  document.querySelector('.start').addEventListener('click', start)
+}
+
+function createTable() {
+  let table = `<table border="1"><tr><th>Epoka</th><th>Błąd</th><th>w<sub>0</sub></th><th>w<sub>1</sub></th><th>w<sub>2</sub></th></tr>`
+  generations.forEach((generation, index) => {
+    table += `
+      <tr>
+      <td><b>${index+1}</b></td>
+      <td>${(Math.round(generation.error * 1000) / 1000).toFixed(3)}</td>
+      <td>${Math.round(generation.w0 * 1000) / 1000}</td>
+      <td>${Math.round(generation.w1 * 1000) / 1000}</td>
+      <td>${Math.round(generation.w2 * 1000) / 1000}</td>
+      </tr>
+    `
+  })
+  table += `</table>`
+  document.querySelector('.table1').innerHTML = table
+
+  let table2 = `<table border="1"><tr> <th>Nr</th> <th>x<sub>1</sub></th> <th>x<sub>2</sub></th> <th title="wartość zadana">z</th> </tr>`
+  cu.forEach((element, index) => {
+    table2 += `
+      <tr>
+      <td><b>${index+1}</b></td>
+      <td>${element.in[0]}</td>
+      <td>${element.in[1]}</td>
+      <td>${element.out}</td>
+      </tr>
+    `
+  })
+  table2 += `</table>`
+  document.querySelector('.table2').innerHTML = table2
+}
+
+init()
+start()
+</script>
